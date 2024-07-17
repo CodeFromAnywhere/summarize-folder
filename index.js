@@ -1,11 +1,13 @@
-const [cmd] = process.argv.slice(2);
+#!/usr/bin/env node
 
-if (cmd === "size") {
+const command = process.argv[2];
+
+if (command === "size") {
   require("./summarizeFolder.js");
-}
-if (cmd === "read") {
+} else if (command === "read") {
   require("./getFileHierarchyContent.js");
-}
-if (cmd === "write") {
+} else if (command === "write") {
   require("./writeFileHieararchyContent.js");
+} else {
+  console.log(require("fs").readFileSync("README.md", "utf8"));
 }

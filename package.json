@@ -1,6 +1,6 @@
 {
   "name": "summarize-folder",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "bin": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
