@@ -1,0 +1,302 @@
+.genignore: |-
+  build
+  package-lock.json
+  .git
+  blog
+.gitignore: |-
+  node_modules
+  file_scan_result.yaml
+README.md: >
+  `summarize-folder` is a node.js cli that scans the current folder or given
+  absolute or relative path for all files and folders recursively, and writes a
+  yaml file which is a nested object where the keys are the folder or file
+  names, and the leafs are the amount of characters in the file.
+
+
+  Uses no libraries except node ones and `yaml`
+
+
+  If the target folder has a `.gitignore` file, ensure to ignore the
+  files/folders in that gitignore in the result. Do the same if there's a
+  `.genignore` file available in the root folder or target folder. Also ignore
+  files that are not utf8.
+code-prompt.md: |
+  I have a ticket titled "{title}"
+
+  This is the ticket description:
+
+  """
+  {description}
+  """
+
+  Consider the attached code and modify it.
+
+  Respond with a similar yaml file, but only with the changed files.
+
+  ```yaml
+  { prune_content.yaml }
+  ```
+getFileHierarchyContent.js: >
+  const fs = require("fs");
+
+  const yaml = require("yaml");
+
+  const path = require("path");
+
+
+  /**Create a function that retreives the content for a pruned file list in full
+  as `prune_content.yaml` ensuring it doens't break the format.*/
+
+  function getPrunedContent(basePath, result, maxDepth = 10, currentDepth = 0) {
+    if (currentDepth >= maxDepth || typeof result !== "object") {
+      const content = fs.readFileSync(basePath, "utf8");
+      return content;
+    }
+
+    const prunedResult = {};
+    for (const [key, value] of Object.entries(result)) {
+      prunedResult[key] = getPrunedContent(
+        path.join(basePath, key),
+        value,
+        maxDepth,
+        currentDepth + 1,
+      );
+    }
+    return prunedResult;
+  }
+
+
+  function retrievePrunedContent(absoluteInputPath, outputPath, maxDepth = 10) {
+    // Read the input YAML file
+    const inputContent = fs.readFileSync(absoluteInputPath, "utf8");
+    const parsedContent = yaml.parse(inputContent);
+    const absoluteFolderPath = path.parse(absoluteInputPath).dir;
+    const folderName = path.parse(absoluteFolderPath).base;
+
+    const realParsedContent =
+      folderName === Object.keys(parsedContent)[0]
+        ? parsedContent[folderName]
+        : parsedContent;
+
+    // Prune the content
+    const prunedContent = getPrunedContent(
+      absoluteFolderPath,
+      realParsedContent,
+      maxDepth,
+    );
+
+    // Convert the pruned content back to YAML
+    const yamlContent = yaml.stringify(prunedContent);
+
+    // Write the pruned content to the output file
+    fs.writeFileSync(outputPath, yamlContent, "utf8");
+
+    console.log(`Pruned content written to ${outputPath}`);
+  }
+
+
+  function main() {
+    const args = process.argv.slice(3);
+    if (args.length < 2) {
+      console.error("Usage: read <input_path> <output_path> [maxDepth]");
+      process.exit(1);
+    }
+
+    const inputPath = args[0];
+    const outputPath = args[1];
+    const maxDepth = args[2] ? parseInt(args[2]) : undefined;
+
+    retrievePrunedContent(path.resolve(inputPath), outputPath, maxDepth);
+    console.log(`Pruned content has been written to ${outputPath}`);
+  }
+
+
+  main();
+index.js: |
+  const [cmd] = process.argv.slice(2);
+
+  if (cmd === "size") {
+    require("./summarizeFolder.js");
+  }
+  if (cmd === "read") {
+    require("./getFileHierarchyContent.js");
+  }
+  if (cmd === "write") {
+    require("./writeFileHieararchyContent.js");
+  }
+package.json: |
+  {
+    "name": "summarize-folder",
+    "version": "3.0.0",
+    "bin": "index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "description": "Easy access to files",
+    "dependencies": {
+      "yaml": "^2.4.5"
+    }
+  }
+prune-prompt.md: >
+  Attached is a file hierarchy with in the values the size of each file.
+
+
+  I have a ticket titled "{title}"
+
+
+  This is the ticket description:
+
+
+  """
+
+  {description}
+
+  """
+
+
+  Please tell me which files are most likely relevant. Respond with a subset of
+  the same file hierarchy within yaml quotes.
+
+
+  ```yaml
+
+  { file_scan_result.yaml }
+
+  ```
+summarizeFolder.js: |
+  #!/usr/bin/env node
+
+  const fs = require("fs");
+  const path = require("path");
+  const yaml = require("yaml");
+
+  function isUtf8(buffer) {
+    try {
+      buffer.toString("utf8");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function parseGitignore(content) {
+    return content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+  }
+
+  function isIgnored(filePath, ignorePatterns) {
+    return ignorePatterns.some((pattern) => {
+      if (pattern.endsWith("/")) {
+        return filePath.startsWith(pattern);
+      }
+      return filePath === pattern || filePath.startsWith(pattern + "/");
+    });
+  }
+
+  function scanDirectory(baseDir, dir, ignorePatterns) {
+    const result = {};
+    const files = fs.readdirSync(dir);
+
+    for (const file of files) {
+      const filePath = path.join(dir, file);
+      const relativePath = path.relative(baseDir, filePath);
+
+      if (isIgnored(relativePath, ignorePatterns)) {
+        continue;
+      }
+
+      const stats = fs.statSync(filePath);
+
+      if (stats.isDirectory()) {
+        result[file] = scanDirectory(baseDir, filePath, ignorePatterns);
+      } else if (stats.isFile()) {
+        const content = fs.readFileSync(filePath);
+        if (isUtf8(content)) {
+          result[file] = content.toString().length;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  function main() {
+    const targetPath = process.argv[3] || ".";
+    const absolutePath = path.resolve(targetPath);
+
+    let ignorePatterns = [];
+    const gitignorePath = path.join(absolutePath, ".gitignore");
+    const generatedIgnorePath = path.join(absolutePath, ".genignore");
+    if (fs.existsSync(gitignorePath)) {
+      const gitignoreContent = fs.readFileSync(gitignorePath, "utf8");
+      ignorePatterns = parseGitignore(gitignoreContent);
+    }
+    if (fs.existsSync(generatedIgnorePath)) {
+      const genignoreContent = fs.readFileSync(generatedIgnorePath, "utf8");
+      ignorePatterns = ignorePatterns.concat(parseGitignore(genignoreContent));
+    }
+
+    console.log("ignoring:", ignorePatterns);
+
+    const result = {
+      [path.basename(absolutePath)]: scanDirectory(
+        absolutePath,
+        absolutePath,
+        ignorePatterns,
+      ),
+    };
+
+    const yamlContent = yaml.stringify(result);
+    const outputPath = "summary-filesizes.yaml";
+    fs.writeFileSync(outputPath, yamlContent, "utf8");
+
+    console.log(`Scan complete. Results written to ${outputPath}`);
+  }
+
+  main();
+writeFileHieararchyContent.js: |
+  #!/usr/bin/env node
+
+  const fs = require("fs");
+  const path = require("path");
+  const yaml = require("yaml");
+
+  async function writeContentToFiles(basePath, content) {
+    for (const [filePath, fileContent] of Object.entries(content)) {
+      if (typeof fileContent === "object" && fileContent !== null) {
+        await writeContentToFiles(path.join(basePath, filePath), fileContent);
+      } else {
+        const fullPath = path.join(basePath, filePath);
+        await fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        await fs.writeFileSync(fullPath, fileContent);
+        console.log(`Written: ${fullPath}`);
+      }
+    }
+  }
+
+  async function main() {
+    if (process.argv.length < 4) {
+      console.error("Usage: write <path-to-yaml-file>");
+      process.exit(1);
+    }
+
+    const inputFile = path.resolve(process.argv[3]);
+    const basePath = path.dirname(inputFile);
+
+    try {
+      const fileContent = await fs.readFileSync(inputFile, "utf8");
+      const parsedContent = yaml.parse(fileContent);
+
+      await writeContentToFiles(basePath, parsedContent);
+      console.log("All files have been written successfully.");
+    } catch (error) {
+      console.error("An error occurred:", error.message);
+      process.exit(1);
+    }
+  }
+
+  main();

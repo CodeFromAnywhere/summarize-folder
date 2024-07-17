@@ -1,0 +1,236 @@
+src:
+  claimwise:
+    full-patent-text:
+      FullPatentText.tsx: |
+        import {
+          LegacyRef,
+          PropsWithChildren,
+          ReactNode,
+          forwardRef,
+          useEffect,
+          useRef,
+          useState,
+        } from "react";
+
+        import { useParams } from "react-router-dom";
+
+        import { useTheme } from "@mui/material/styles";
+
+        import FormatListNumberedRoundedIcon from "@mui/icons-material/FormatListNumberedRounded";
+        import ShortTextRoundedIcon from "@mui/icons-material/ShortTextRounded";
+        import ViewHeadlineRoundedIcon from "@mui/icons-material/ViewHeadlineRounded";
+
+        import ScrollIntoView from "react-scroll-into-view";
+
+        //Local imports
+        import { useAppTheme } from "features/app/theme/useAppTheme";
+        import { useFullPatentText } from "claimwise/full-patent-text/hooks/useFullPatentText";
+        import ArgonBox from "argon-ui-kit/components/ArgonBox";
+        import ClaimsSection from "claimwise/full-patent-text/ClaimsSection";
+        import DescriptionSection from "claimwise/full-patent-text/DescriptionSection";
+        import AbstractSection from "claimwise/full-patent-text/AbstractSection";
+        import FullTextNavigationBarButton, {
+          FullTextNavigationBarButtonProps,
+        } from "claimwise/full-patent-text/FullTextNavigationBarButton";
+        import type { FEFullPatent } from "claimwise/full-patent-text/types";
+        import { useStandardizeTexts } from "common/hooks/useStandardizeTexts";
+        import { useProject } from "claimwise/projects/hooks/useProject";
+
+        type TabValue = "claims" | "abstract" | "description";
+
+        type FullPatentSectionProps = { data: FEFullPatent | undefined; isLoading: boolean };
+
+        type SectionProps = { id: string };
+
+        const Section = forwardRef(
+          ({ id, children }: PropsWithChildren<SectionProps>, ref: LegacyRef<HTMLDivElement>) => (
+            <div ref={ref} id={id}>
+              {children}
+            </div>
+          ),
+        );
+
+        type NavigationTabProps = {
+          selectorName: string;
+          activeTab: TabValue;
+          changeActiveTab: (tab: TabValue) => void;
+        } & Omit<FullTextNavigationBarButtonProps, "onClick" | "isActive">;
+
+        const ScrollableNavigationTab = ({
+          selectorName,
+          activeTab,
+          changeActiveTab,
+          ...props
+        }: NavigationTabProps) => {
+          const tabName = selectorName.replace("#", "") as TabValue;
+
+          return (
+            <ScrollIntoView selector={selectorName}>
+              <FullTextNavigationBarButton
+                isActive={activeTab === tabName}
+                onClick={() => {
+                  if (activeTab !== tabName) {
+                    changeActiveTab(tabName);
+                  }
+                }}
+                {...props}
+              />
+            </ScrollIntoView>
+          );
+        };
+
+        const FullPatentText = () => {
+          const { projectId } = useParams();
+          const { palette } = useTheme();
+          const { data: fullText, isLoading } = useFullPatentText({ projectId: projectId! });
+
+          const [activeTab, setActiveTab] = useState<TabValue>("abstract");
+
+          const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+          useEffect(() => {
+            const observer = new IntersectionObserver(
+              (entries) => {
+                entries.forEach((entry) => {
+                  if (entry.isIntersecting) {
+                    setActiveTab(entry.target.getAttribute("id") as TabValue);
+                  }
+                });
+              },
+              { threshold: 0.5, rootMargin: "-50% 0px -50% 0px" },
+            );
+
+            sectionRefs.current.forEach((ref) => {
+              if (ref) {
+                observer.observe(ref);
+              }
+            });
+
+            return () => {
+              sectionRefs.current.forEach((ref) => {
+                if (ref) {
+                  observer.unobserve(ref);
+                }
+              });
+            };
+          }, []);
+
+          const navigationTabs: NavigationTabProps[] = [
+            {
+              selectorName: "#abstract",
+              titleKey: "projects.project_page.full_patent_text_tab.abstract",
+              icon: <ShortTextRoundedIcon />,
+              activeTab,
+              changeActiveTab: setActiveTab,
+            },
+            {
+              selectorName: "#description",
+              titleKey: "projects.project_page.full_patent_text_tab.description",
+              icon: <ViewHeadlineRoundedIcon />,
+              activeTab,
+              changeActiveTab: setActiveTab,
+            },
+            {
+              selectorName: "#claims",
+              titleKey: "projects.project_page.full_patent_text_tab.claims",
+              icon: <FormatListNumberedRoundedIcon />,
+              activeTab,
+              changeActiveTab: setActiveTab,
+            },
+          ];
+
+          return (
+            <ArgonBox mb={2} flex={1} width="100%" minHeight={0} display={"flex"} flexDirection={"column"}>
+              <ArgonBox
+                display="flex"
+                position="sticky"
+                top="0"
+                zIndex={99}
+                flexWrap={"wrap"}
+                sx={{ backgroundColor: palette.background.default }}
+              >
+                {navigationTabs.map((tab) => (
+                  <ScrollableNavigationTab key={tab.titleKey} {...tab} />
+                ))}
+              </ArgonBox>
+
+              <ArgonBox
+                flex={1}
+                minHeight={0}
+                my={2}
+                display="flex"
+                flexDirection={"column"}
+                gap={4}
+                pb={40}
+              >
+                <Section id="abstract" key={"abstract"} ref={(el) => (sectionRefs.current[0] = el)}>
+                  <AbstractSection isLoading={isLoading} data={fullText} />
+                </Section>
+
+                <Section id="description" key="description" ref={(el) => (sectionRefs.current[1] = el)}>
+                  <DescriptionSection isLoading={isLoading} data={fullText} />
+                </Section>
+
+                <Section id="claims" key="claims" ref={(el) => (sectionRefs.current[2] = el)}>
+                  <ClaimsSection isLoading={isLoading} data={fullText} />
+                </Section>
+              </ArgonBox>
+            </ArgonBox>
+          );
+        };
+
+        export type { FullPatentSectionProps };
+        export default FullPatentText;
+
+      DescriptionSection.tsx: |
+        import { useState } from "react";
+        import { Skeleton } from "@mui/material";
+        import ArgonBox from "argon-ui-kit/components/ArgonBox";
+        import DescriptionListItem from "claimwise/full-patent-text/DescriptionListItem";
+        import FullPatentSectionHeader from "claimwise/full-patent-text/FullPatentSectionHeader";
+        import type { FullPatentSectionProps } from "claimwise/full-patent-text/FullPatentText";
+        import AbsentDataInformativeText from "common/components/AbsentDataInformativeText";
+        import TabularPane from "common/components/tab/TabularPane";
+        import { Tab } from "@mui/material";
+
+        type DescriptionSectionProps = FullPatentSectionProps;
+
+        const DescriptionSection = ({ data, isLoading }: DescriptionSectionProps) => {
+          const description = data?.description || {};
+          const noDescription = Object.keys(description).length === 0;
+          const [activeSubTab, setActiveSubTab] = useState(0);
+
+          const subtabs = Object.keys(description).map((key, index) => (
+            <Tab label={key} key={index} />
+          ));
+
+          const subtabsContext = (activeTab: number) =>
+            Object.entries(description).map(([key, values], index) => (
+              <DescriptionListItem key={key} header={key} paragraphs={values} />
+            ));
+
+          return (
+            <>
+              <FullPatentSectionHeader title={"projects.project_page.full_patent_text_tab.description"} />
+              {isLoading ? (
+                <Skeleton height={400} width="100%" sx={{ transform: "none" }} />
+              ) : noDescription ? (
+                <AbsentDataInformativeText
+                  message="projects.project_page.full_patent_text_tab.no_description"
+                  ml={2}
+                />
+              ) : (
+                <TabularPane
+                  tabs={subtabs}
+                  tabsContext={subtabsContext}
+                  tabsProps={{
+                    value: activeSubTab,
+                    onChange: (_, newValue) => setActiveSubTab(newValue),
+                  }}
+                />
+              )}
+            </>
+          );
+        };
+
+        export default DescriptionSection;

@@ -1,0 +1,11 @@
+summarize-folder:
+  .genignore: 28
+  .gitignore: 34
+  README.md: 578
+  code-prompt.md: 236
+  getFileHierarchyContent.js: 2050
+  index.js: 235
+  package.json: 277
+  prune-prompt.md: 323
+  summarizeFolder.js: 2358
+  writeFileHieararchyContent.js: 1212

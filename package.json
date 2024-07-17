@@ -1,14 +1,13 @@
 {
   "name": "summarize-folder",
-  "version": "1.0.0",
-  "main": "index.js",
-  "bin":"index.js",
+  "version": "3.0.0",
+  "bin": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Easy access to files",
   "dependencies": {
     "yaml": "^2.4.5"
   }

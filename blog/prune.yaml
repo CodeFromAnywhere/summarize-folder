@@ -1,0 +1,17 @@
+claimwise-fe:
+  src:
+    claimwise:
+      full-patent-text:
+        FullPatentText.tsx: 5242
+        FullTextNavigationBarButton.tsx: 1273
+        FullTextTypography.tsx: 902
+        AbstractSection.tsx: 1220
+        ClaimsSection.tsx: 1511
+        DescriptionSection.tsx: 1406
+        FullPatentSectionCard.tsx: 750
+        FullPatentSectionHeader.tsx: 916
+    common:
+      components:
+        tab:
+          CustomTabPanel.tsx: 842
+          TabularPane.tsx: 2479
