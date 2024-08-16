@@ -1,5 +1,5 @@
 build
 package-lock.json
 .git
-*.yaml
+**/*.yaml
 blog
